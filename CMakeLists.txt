@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(kojiverb VERSION 1.0.0 LANGUAGES CXX)
+project(kojiverb VERSION 1.0.0 LANGUAGES C CXX)
 include(FetchContent)
 FetchContent_Declare(JUCE GIT_REPOSITORY https://github.com/juce-framework/JUCE.git GIT_TAG 9.0.5 GIT_SHALLOW TRUE)
 FetchContent_MakeAvailable(JUCE)
