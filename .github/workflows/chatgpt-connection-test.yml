@@ -1,0 +1,14 @@
+name: ChatGPT connection test
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - README.md
+
+jobs:
+  connection-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm workflow execution
+        run: echo "GitHub Actions workflow is working."
