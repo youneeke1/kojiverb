@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Configure JUCE project
-        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+        run: cmake -S . -B build -A x64
       - name: Compile VST3
         run: cmake --build build --config Release --target kojiverb_VST3 --parallel
       - name: Package plugin
