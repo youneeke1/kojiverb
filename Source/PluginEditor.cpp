@@ -1,0 +1,22 @@
+#include "PluginEditor.h"
+namespace {const juce::Colour cream{0xffffe0d6},pink{0xffff6478},panel{0xff39151f};
+void star(juce::Graphics& g,float x,float y,float r){juce::Path p;for(int i=0;i<10;++i){float a=-juce::MathConstants<float>::halfPi+i*juce::MathConstants<float>::pi/5,rr=i%2?r*.4f:r;juce::Point<float> q{x+std::cos(a)*rr,y+std::sin(a)*rr};if(!i)p.startNewSubPath(q);else p.lineTo(q);}p.closeSubPath();g.strokePath(p,juce::PathStrokeType(2));}
+void doodle(juce::Graphics& g,int k,float x,float y){g.setColour(cream);if(k==0){for(int i=0;i<5;++i)g.drawLine(x-25+i*12,y+std::sin(i*2.1f)*12,x-18+i*12,y+std::sin((i+1)*2.1f)*12,2);g.setColour(pink);for(int i=0;i<4;++i)g.fillRect((int)x-17+i*10,(int)y+17,5,5);}else if(k==1){g.drawEllipse(x-22,y-12,44,24,2);g.drawEllipse(x-15,y-17,30,34,2);star(g,x+24,y-15,5);star(g,x-25,y+16,4);}else{for(int i=0;i<3;++i)g.drawEllipse(x-25+i*10,y-12+i*4,22,24-i*8,2);g.setColour(pink);g.drawLine(x+18,y-12,x+29,y-12,2);g.drawLine(x+29,y-12,x+24,y-17,2);g.drawLine(x+29,y-12,x+24,y-7,2);}}
+}
+KojiverbEditor::KojiverbEditor(KojiverbProcessor& p):AudioProcessorEditor(&p),proc(p){setSize(820,540);
+ heading.setText("KOJIVERB",juce::dontSendNotification);heading.setFont(juce::Font(juce::FontOptions(36,juce::Font::bold)));heading.setColour(juce::Label::textColourId,cream);addAndMakeVisible(heading);
+ sub.setText("A LITTLE CHAOS MACHINE  //  TURN KNOBS, MAKE SPACE",juce::dontSendNotification);sub.setColour(juce::Label::textColourId,cream);addAndMakeVisible(sub);
+ const char* ids[]={"crush","bits","rate","room","damp","rev","delayMix","feedback","freeTime"};
+ const char* names[]={"LOSSY MIX","BIT DEPTH","RATE REDUCE","ROOM SIZE","DAMPING","REVERB MIX","DELAY MIX","FEEDBACK","FREE TIME"};
+ for(int i=0;i<9;++i){labels[i].setText(names[i],juce::dontSendNotification);labels[i].setJustificationType(juce::Justification::centred);labels[i].setColour(juce::Label::textColourId,cream);addAndMakeVisible(labels[i]);auto& s=knobs[i];s.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);s.setTextBoxStyle(juce::Slider::TextBoxBelow,false,64,20);s.setColour(juce::Slider::rotarySliderFillColourId,pink);s.setColour(juce::Slider::thumbColourId,cream);s.setColour(juce::Slider::textBoxTextColourId,cream);s.setColour(juce::Slider::textBoxBackgroundColourId,panel);addAndMakeVisible(s);attach[i]=std::make_unique<SA>(proc.state,ids[i],s);}
+ mode.addItemList({"MONO","STEREO","PING-PONG"},1);division.addItemList({"1/1","1/2","1/4","1/8","1/16","1/8T","1/16T","1/4D","1/8D","1/16D"},1);
+ for(auto* c:{&mode,&division}){c->setColour(juce::ComboBox::backgroundColourId,panel);c->setColour(juce::ComboBox::textColourId,cream);c->setColour(juce::ComboBox::outlineColourId,pink);addAndMakeVisible(*c);}
+ modeA=std::make_unique<CA>(proc.state,"mode",mode);divisionA=std::make_unique<CA>(proc.state,"division",division);
+ sync.setColour(juce::ToggleButton::textColourId,cream);freeze.setColour(juce::ToggleButton::textColourId,cream);addAndMakeVisible(sync);addAndMakeVisible(freeze);
+ syncA=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(proc.state,"sync",sync);freezeA=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(proc.state,"freeze",freeze);
+}
+void KojiverbEditor::paint(juce::Graphics& g){g.fillAll(juce::Colour(0xff16090e));g.setGradientFill(juce::ColourGradient(juce::Colour(0xff521b2a),0,0,juce::Colour(0xff1b0b11),820,540,false));g.fillRoundedRectangle(getLocalBounds().toFloat().reduced(8),16);g.setColour(pink);g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(8),16,2);
+ g.setColour(panel);g.fillRoundedRectangle(24,112,772,250,14);g.fillRoundedRectangle(24,378,772,130,14);g.setColour(pink);g.setFont(juce::Font(juce::FontOptions(11,juce::Font::bold)));g.drawText("CRUNCHY PIXEL NOISE",40,118,180,16,juce::Justification::left);g.drawText("SPACE PLANET",310,118,140,16,juce::Justification::left);g.drawText("ECHO ECHO ECHO",570,118,180,16,juce::Justification::left);
+ doodle(g,0,105,150);doodle(g,1,410,150);doodle(g,2,700,150);g.setColour(cream);star(g,750,62,9);star(g,710,82,5);g.drawText("HAND-DRAWN SOUND EXPERIMENT",40,480,300,18,juce::Justification::left);
+}
+void KojiverbEditor::resized(){heading.setBounds(32,20,340,48);sub.setBounds(36,70,440,20);for(int i=0;i<9;++i){int row=i/5,col=i%5,x=36+col*151+(row?75:0),y=row?382:170;labels[i].setBounds(x,y,130,20);knobs[i].setBounds(x+5,y+22,120,135);}mode.setBounds(42,438,145,30);division.setBounds(202,438,150,30);sync.setBounds(380,438,155,30);freeze.setBounds(555,438,110,30);}
