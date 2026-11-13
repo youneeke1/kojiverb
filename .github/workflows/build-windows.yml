@@ -1,0 +1,28 @@
+name: Build kojiverb VST3 (Windows x64)
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure JUCE project
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+      - name: Compile VST3
+        run: cmake --build build --config Release --target kojiverb_VST3 --parallel
+      - name: Package plugin
+        shell: pwsh
+        run: |
+          $bundle = "build/kojiverb_artefacts/Release/VST3/kojiverb.vst3"
+          if (!(Test-Path $bundle)) { Get-ChildItem build -Recurse -Filter "kojiverb.vst3" | Format-List FullName; throw "VST3 bundle missing" }
+          Compress-Archive -Path $bundle -DestinationPath "kojiverb-windows-x64-vst3.zip" -Force
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kojiverb-windows-x64-vst3
+          path: kojiverb-windows-x64-vst3.zip
+          if-no-files-found: error
+          retention-days: 30
