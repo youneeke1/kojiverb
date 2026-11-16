@@ -56,6 +56,7 @@ private:
     int packetCounter = 0;
     int packetLength = 512;
     bool packetDropped = false;
+    bool packetBufferReady = false;
     double sampleRate = 44100.0;
     juce::Random random;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(KojiverbProcessor)
