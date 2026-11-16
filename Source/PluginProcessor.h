@@ -1,6 +1,7 @@
 #pragma once
 #include <JuceHeader.h>
 #include <array>
+#include <memory>
 
 class KojiverbProcessor final : public juce::AudioProcessor {
 public:
@@ -23,20 +24,32 @@ public:
     void changeProgramName(int, const juce::String&) override {}
     void getStateInformation(juce::MemoryBlock&) override;
     void setStateInformation(const void*, int) override;
-
     juce::AudioProcessorValueTreeState state;
     static juce::AudioProcessorValueTreeState::ParameterLayout makeParams();
-
 private:
+    static constexpr int fftOrder = 11;
+    static constexpr int fftSize = 1 << fftOrder;
+    static constexpr int hopSize = fftSize / 4;
+    static constexpr int delaySize = fftSize * 8;
     struct ChannelState {
-        float previousInput = 0.0f, previousDecoded = 0.0f, smoothed = 0.0f;
-        float previousPacket = 0.0f, heldPacket = 0.0f;
-        float hpX[4]{}, hpY[4]{}, lpY[4]{};
-        float history[128]{};
-        int historyWrite = 0;
+        std::array<float, fftSize> input{};
+        std::array<float, fftSize * 2> fftData{};
+        std::array<float, delaySize> outputDelay{};
+        std::array<float, fftSize / 2 + 1> previousMagnitude{};
+        std::array<float, fftSize / 2 + 1> previousPhase{};
+        std::array<float, fftSize / 2 + 1> phaseAccumulator{};
+        std::array<float, 4> hpX{}, hpY{}, lpY{};
+        int inputWrite = 0;
+        int samplesSinceFrame = 0;
+        int64_t absoluteSample = 0;
+        float envelope = 0.0f;
     };
+    void processSpectralFrame(ChannelState&, int channel, int mode, float amount,
+                              float speed, bool perceptual, int stereoMode);
     std::array<ChannelState, 2> channels;
-    int blockCounter = 0, blockLength = 1;
+    juce::dsp::FFT fft{fftOrder};
+    juce::dsp::WindowingFunction<float> window{fftSize, juce::dsp::WindowingFunction<float>::hann, true};
+    int packetCounter = 0;
     bool packetDropped = false;
     double sampleRate = 44100.0;
     juce::Random random;
