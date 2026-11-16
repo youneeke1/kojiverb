@@ -44,6 +44,7 @@ private:
         int64_t absoluteSample = 0;
         float envelope = 0.0f;
         float packetGain = 1.0f;
+        std::array<float, 8192> packetBuffer{};
         float packetHold = 0.0f;
         float gateGain = 1.0f;
     };
@@ -53,6 +54,7 @@ private:
     juce::dsp::FFT fft{fftOrder};
     juce::dsp::WindowingFunction<float> window{fftSize, juce::dsp::WindowingFunction<float>::hann, true};
     int packetCounter = 0;
+    int packetLength = 512;
     bool packetDropped = false;
     double sampleRate = 44100.0;
     juce::Random random;
