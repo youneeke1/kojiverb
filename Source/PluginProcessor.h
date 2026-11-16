@@ -43,6 +43,9 @@ private:
         int samplesSinceFrame = 0;
         int64_t absoluteSample = 0;
         float envelope = 0.0f;
+        float packetGain = 1.0f;
+        float packetHold = 0.0f;
+        float gateGain = 1.0f;
     };
     void processSpectralFrame(ChannelState&, int channel, int mode, float amount,
                               float speed, bool perceptual, int stereoMode);
