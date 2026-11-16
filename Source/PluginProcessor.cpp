@@ -42,7 +42,7 @@ bool KojiverbProcessor::isBusesLayoutSupported(const BusesLayout& b) const {
  return (in==juce::AudioChannelSet::mono()&&(out==juce::AudioChannelSet::mono()||out==juce::AudioChannelSet::stereo()))||(in==juce::AudioChannelSet::stereo()&&out==juce::AudioChannelSet::stereo());
 }
 void KojiverbProcessor::prepareToPlay(double sr,int) {
- sampleRate=sr; for(auto& c:channels)c=ChannelState{}; packetCounter=0; packetDropped=false;
+ sampleRate=sr; for(auto& c:channels)c=ChannelState{}; packetCounter=0; packetLength=hopSize; packetDropped=false;
 }
 void KojiverbProcessor::releaseResources() {}
 
@@ -130,6 +130,11 @@ void KojiverbProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::Midi
  const float high=juce::jlimit(low,(float)(sampleRate*0.45),param(state,"highCut",20000));
  const float hpA=std::exp(-twoPi*low/(float)sampleRate), lpA=1.0f-std::exp(-twoPi*high/(float)sampleRate);
  for(int i=0;i<n;++i) {
+   const bool packetMode=(mode>=3 && mode<=6);
+   if(packetMode && packetCounter==0) {
+     packetLength=juce::jlimit(512,8192,hopSize*(1+(int)std::round((1.0f-speed)*15.0f)));
+     packetDropped=random.nextFloat() < amount*0.55f;
+   }
    float input[2]{}; for(int ch=0;ch<nCh;++ch)input[ch]=buffer.getSample(ch,i)*inGain;
    if(nCh==1)input[1]=input[0];
    if(stereo==2){float m=0.5f*(input[0]+input[1]);input[0]=input[1]=m;}
@@ -147,27 +152,22 @@ void KojiverbProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::Midi
      if(s.samplesSinceFrame>=hopSize && s.absoluteSample>=fftSize) {
        s.samplesSinceFrame=0;
        processSpectralFrame(s,ch,mode,amount,speed,perceptual,stereo);
-       if(ch==0) {
-         const int packetFrames=juce::jmax(1,1+(int)((1.0f-speed)*15.0f));
-         if(packetCounter==0) packetDropped=random.nextFloat() < amount*0.55f;
-         packetCounter=(packetCounter+1)%packetFrames;
-       }
      }
      const int readSlot=(int)((s.absoluteSample-1)%delaySize);
      float wet=s.outputDelay[(size_t)readSlot]; s.outputDelay[(size_t)readSlot]=0.0f;
-     // Packet faults must never switch abruptly: hard packet gates create
-     // discontinuities (clicks). Smooth the transition over a few milliseconds.
-     const bool packetMode=(mode>=3 && mode<=6);
+     // Packet decisions are made once per packet, never per sample/frame.
+     // Repeat replays the previous complete audio packet, not a frozen last sample.
      const float packetTarget=(!packetMode || !packetDropped) ? 1.0f : 0.0f;
-     const float packetSmooth=1.0f-std::exp(-1.0f/(float)(sampleRate*0.006));
+     const float packetSmooth=1.0f-std::exp(-1.0f/(float)(sampleRate*0.012));
      s.packetGain += (packetTarget-s.packetGain)*packetSmooth;
+     const int packetIndex=juce::jlimit(0,8191,packetCounter);
+     if(!packetDropped) s.packetBuffer[(size_t)packetIndex]=wet;
+     const float repeated=s.packetBuffer[(size_t)juce::jmin(packetIndex,packetLength-1)];
      if(mode==4 || mode==5) {
        wet *= s.packetGain;
-       if(!packetDropped) s.packetHold=wet;
      } else if(mode==3 || mode==6) {
-       if(!packetDropped) s.packetHold=wet;
        const float repeatMix=1.0f-s.packetGain;
-       wet=wet*s.packetGain+s.packetHold*repeatMix;
+       wet=wet*s.packetGain+repeated*repeatMix;
      }
      float y=enabled?wet*lossGain:x;
      if(enabled)y=x+(y-x)*mix;
@@ -176,6 +176,7 @@ void KojiverbProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::Midi
      output[ch]=y;
    }
    for(int ch=0;ch<nCh;++ch)buffer.setSample(ch,i,output[ch]);
+   if(mode>=3 && mode<=6) packetCounter=(packetCounter+1)%packetLength;
  }
 }
 void KojiverbProcessor::getStateInformation(juce::MemoryBlock& dest){auto copy=state.copyState();std::unique_ptr<juce::XmlElement> xml(copy.createXml());copyXmlToBinary(*xml,dest);}
