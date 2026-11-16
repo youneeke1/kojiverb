@@ -99,10 +99,15 @@ void KojiverbProcessor::processSpectralFrame(ChannelState& s,int channel,int mod
  s.fftData[0]=s.fftData[1]=0.0f;
  s.fftData[(size_t)fftSize]=s.fftData[(size_t)fftSize+1]=0.0f;
  fft.performRealOnlyInverseTransform(s.fftData.data());
+ // Apply the synthesis window before overlap-add; JUCE exposes the window
+ // through multiplyWithWindowingTable rather than a public table getter.
+ window.multiplyWithWindowingTable(s.fftData.data(), fftSize);
  // Schedule this frame into a future output window, giving a stable one-frame latency.
  const int64_t frameStart=s.absoluteSample+1;
  for(int i=0;i<fftSize;++i) {
-   const float w=window.getWindowingTable()[i];
+   // Apply the synthesis Hann window through JUCE's supported API.
+   // The same window is used for analysis and synthesis (75% overlap).
+   const float w=1.0f;
    const float y=s.fftData[(size_t)i]*w*(2.0f/3.0f);
    const int slot=(int)((frameStart+i)%delaySize);
    s.outputDelay[(size_t)slot]+=y;
