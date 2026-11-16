@@ -134,7 +134,6 @@ void KojiverbProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::Midi
    if(nCh==1)input[1]=input[0];
    if(stereo==2){float m=0.5f*(input[0]+input[1]);input[0]=input[1]=m;}
    else if(stereo==1){float mid=0.5f*(input[0]+input[1]),side=0.5f*(input[0]-input[1]);input[0]=mid+side;input[1]=mid-side;}
-   if(packetCounter==0)packetDropped=random.nextFloat()<amount*0.55f;
    float output[2]{};
    for(int ch=0;ch<nCh;++ch) {
      auto& s=channels[(size_t)ch]; float x=input[ch];
@@ -148,15 +147,27 @@ void KojiverbProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::Midi
      if(s.samplesSinceFrame>=hopSize && s.absoluteSample>=fftSize) {
        s.samplesSinceFrame=0;
        processSpectralFrame(s,ch,mode,amount,speed,perceptual,stereo);
-       if(ch==0)packetCounter=(packetCounter+1)%juce::jmax(1,1+(int)((1.0f-speed)*15.0f));
+       if(ch==0) {
+         const int packetFrames=juce::jmax(1,1+(int)((1.0f-speed)*15.0f));
+         if(packetCounter==0) packetDropped=random.nextFloat() < amount*0.55f;
+         packetCounter=(packetCounter+1)%packetFrames;
+       }
      }
      const int readSlot=(int)((s.absoluteSample-1)%delaySize);
      float wet=s.outputDelay[(size_t)readSlot]; s.outputDelay[(size_t)readSlot]=0.0f;
-     // Packet faults are frame-gated and distinct from transform coding.
-     if(mode==4||mode==5) { if(packetDropped)wet=0.0f; }
-     else if(mode==3||mode==6) { if(packetDropped)wet=s.envelope; else s.envelope=wet; }
-     if(mode==5||mode==6) {
-       // Combined modes retain spectral coding and then apply packet corruption.
+     // Packet faults must never switch abruptly: hard packet gates create
+     // discontinuities (clicks). Smooth the transition over a few milliseconds.
+     const bool packetMode=(mode>=3 && mode<=6);
+     const float packetTarget=(!packetMode || !packetDropped) ? 1.0f : 0.0f;
+     const float packetSmooth=1.0f-std::exp(-1.0f/(float)(sampleRate*0.006));
+     s.packetGain += (packetTarget-s.packetGain)*packetSmooth;
+     if(mode==4 || mode==5) {
+       wet *= s.packetGain;
+       if(!packetDropped) s.packetHold=wet;
+     } else if(mode==3 || mode==6) {
+       if(!packetDropped) s.packetHold=wet;
+       const float repeatMix=1.0f-s.packetGain;
+       wet=wet*s.packetGain+s.packetHold*repeatMix;
      }
      float y=enabled?wet*lossGain:x;
      if(enabled)y=x+(y-x)*mix;
