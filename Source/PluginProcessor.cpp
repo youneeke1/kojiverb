@@ -42,7 +42,7 @@ bool KojiverbProcessor::isBusesLayoutSupported(const BusesLayout& b) const {
  return (in==juce::AudioChannelSet::mono()&&(out==juce::AudioChannelSet::mono()||out==juce::AudioChannelSet::stereo()))||(in==juce::AudioChannelSet::stereo()&&out==juce::AudioChannelSet::stereo());
 }
 void KojiverbProcessor::prepareToPlay(double sr,int) {
- sampleRate=sr; for(auto& c:channels)c=ChannelState{}; packetCounter=0; packetLength=hopSize; packetDropped=false;
+ sampleRate=sr; for(auto& c:channels)c=ChannelState{}; packetCounter=0; packetLength=hopSize; packetDropped=false; packetBufferReady=false;
 }
 void KojiverbProcessor::releaseResources() {}
 
@@ -133,7 +133,7 @@ void KojiverbProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::Midi
    const bool packetMode=(mode>=3 && mode<=6);
    if(packetMode && packetCounter==0) {
      packetLength=juce::jlimit(512,8192,hopSize*(1+(int)std::round((1.0f-speed)*15.0f)));
-     packetDropped=random.nextFloat() < amount*0.55f;
+     packetDropped=packetBufferReady && (random.nextFloat() < amount*0.55f);
    }
    float input[2]{}; for(int ch=0;ch<nCh;++ch)input[ch]=buffer.getSample(ch,i)*inGain;
    if(nCh==1)input[1]=input[0];
@@ -176,7 +176,10 @@ void KojiverbProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::Midi
      output[ch]=y;
    }
    for(int ch=0;ch<nCh;++ch)buffer.setSample(ch,i,output[ch]);
-   if(mode>=3 && mode<=6) packetCounter=(packetCounter+1)%packetLength;
+   if(mode>=3 && mode<=6) {
+     if(packetCounter==packetLength-1 && !packetDropped) packetBufferReady=true;
+     packetCounter=(packetCounter+1)%packetLength;
+   }
  }
 }
 void KojiverbProcessor::getStateInformation(juce::MemoryBlock& dest){auto copy=state.copyState();std::unique_ptr<juce::XmlElement> xml(copy.createXml());copyXmlToBinary(*xml,dest);}
